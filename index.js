@@ -242,8 +242,10 @@ function addNewPiece(grid) {
         var rx = getRandNumber(0, 3);
         var ry = getRandNumber(0, 3);
         if (grid[rx][ry] == 0) {
-            var randNew = getRandNumber(1,3);
-            grid[rx][ry] = randNew;
+            var randNew = getRandNumber(1,10);
+                if (randNew <= 6) grid[rx][ry] = 1;
+                else if (randNew <= 9) grid[rx][ry] = 2;
+                else grid[rx][ry] = 3;
             break;
         }
     }
@@ -260,16 +262,24 @@ function initGame() {
                  [0, 0, 0, 0],
                  [0, 0, 0, 0],
                  [0, 0, 0, 0] ];
-    addNewPiece(gameGrid);
+    for (i = 0; i < 3; i++) addNewPiece(gameGrid);
 }
 
 // checkAvailableMovements: checks in which directions the nummbers can be moved
-function checkAvailableMovements(){
+function checkAvailableMovements(emoji){
     var availableMovements = [];
-    if (!checkUp(gameGrid)) availableMovements.push("up");
-    if (!checkDown(gameGrid)) availableMovements.push("down");
-    if (!checkLeft(gameGrid)) availableMovements.push("left");
-    if (!checkRight(gameGrid)) availableMovements.push("right");
+    if (!emoji) {
+        if (!checkUp(gameGrid)) availableMovements.push("up");
+        if (!checkDown(gameGrid)) availableMovements.push("down");
+        if (!checkLeft(gameGrid)) availableMovements.push("left");
+        if (!checkRight(gameGrid)) availableMovements.push("right");
+    }
+    else {
+        if (!checkUp(gameGrid)) availableMovements.push("\u{2B06} up");
+        if (!checkDown(gameGrid)) availableMovements.push("\u{2B07} down");
+        if (!checkLeft(gameGrid)) availableMovements.push("\u{2B05} left");
+        if (!checkRight(gameGrid)) availableMovements.push("\u{27A1} right");
+    }
     return availableMovements;
 }
 
@@ -322,15 +332,28 @@ function findAndChooseDirection(data) {
     }
     var directionChosen = getRandNumber(0, tweetTexts.length-1);
     if (tweetTexts.length != 0) {
-        return tweetTexts[directionChosen].toLowerCase();
+        var chosenTweet = tweetTexts[directionChosen].toLowerCase();
+        if (chosenTweet.search("up") != -1 || chosenTweet.search('\u{2B06}\u{FE0F}') != -1) {
+            return 0;
+        }
+        else if (chosenTweet.search("down") != -1 || chosenTweet.search('\u{2B07}\u{FE0F}') != -1 ) {
+            return 1;
+        }
+        else if (chosenTweet.search("left") != -1 || chosenTweet.search('\u{2B05}\u{FE0F}') != -1 ) {
+            return 2;
+        }
+        else if (chosenTweet.search("right") != -1 || chosenTweet.search('\u{27A1}\u{FE0F}') != -1 ) {
+            return 3;
+        }
+        else return -1;
     }
-    else return "rand"
+    else return -1;
 }
 
 var gameFlow = function() {
     if (priorTweet == -1) {
         initGame();
-        var tweetText = buildTweet(gameGrid, -1, checkAvailableMovements());
+        var tweetText = buildTweet(gameGrid, -1, checkAvailableMovements(true));
         T.post('statuses/update', {status: tweetText}, function(err, data, response) {
             if (err) {
                 console.log("error on tweeting the first game!", err);
@@ -346,44 +369,58 @@ var gameFlow = function() {
             if(err) console.log("error on searching tweets!", err);
             else {
                 var direction = findAndChooseDirection(data);
-                if (direction.localeCompare("@emoji2048 up") == 0) {
-                    moveUp(gameGrid);
-                    lastMove = "up";
+                if (direction == 0) {
+                    if (checkUp(gameGrid)) direction = -2;
+                    else {
+                        moveUp(gameGrid);
+                        lastMove = "up";
+                    }
                 }
-                else if (direction.localeCompare("@emoji2048 down") == 0) {
-                    moveDown(gameGrid);
-                    lastMove = "down";
+                else if (direction == 1) {
+                    if (checkDown(gameGrid)) direction = -2;
+                    else {
+                        moveDown(gameGrid);
+                        lastMove = "down";
+                    }
                 }
-                else if (direction.localeCompare("@emoji2048 left") == 0) {
-                    moveLeft(gameGrid);
-                    lastMove = "left";
+                else if (direction == 2) {
+                    if (checkLeft(gameGrid)) direction = -2;
+                    else {
+                        moveLeft(gameGrid);
+                        lastMove = "left";
+                    }
                 }
-                else if (direction.localeCompare("@emoji2048 right") == 0) {
-                    moveRight(gameGrid);
-                    lastMove = "right";
+                else if (direction == 3) {
+                    if (checkRight(gameGrid)) direction = -2;
+                    else {
+                        moveRight(gameGrid);
+                        lastMove = "right";
+                    }
                 }
-                else {
-                    var available = checkAvailableMovements()
+
+                if (direction < 0) {
+                    var available = checkAvailableMovements(false)
                     var randMove = getRandNumber(0, available.length-1);
-                    console.log("Available: " + available + ", rand: " + randMove);
                     switch(available[randMove]) {
                         case "up":
                             moveUp(gameGrid);
-                            lastMove = "up (random)";
+                            lastMove = "up";
                             break;
                         case "down":
                             moveDown(gameGrid);
-                            lastMove = "down (random)";
+                            lastMove = "down";
                             break;
                         case "left":
                             moveLeft(gameGrid);
-                            lastMove = "left (random)";
+                            lastMove = "left";
                             break;
                         case "right":
                             moveRight(gameGrid);
-                            lastMove = "right (random)";
+                            lastMove = "right";
                             break;
                     }
+                    if (direction == -1) lastMove = `${lastMove} (random)`;
+                    else if (direction == -2) lastMove = `${lastMove} (random; no valid options submitted)`;
                 }
 
                 //win condition
@@ -401,7 +438,7 @@ var gameFlow = function() {
                     }
                 }
 
-                var tweetText = buildTweet(gameGrid, buildTweetText, checkAvailableMovements());
+                var tweetText = buildTweet(gameGrid, buildTweetText, checkAvailableMovements(true));
                 T.post('statuses/update', {status: tweetText, in_reply_to_status_id: priorTweet}, function(err, data, response) {
                     if (err) {
                         console.log("error on tweeting an update!", err);
