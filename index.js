@@ -456,4 +456,4 @@ var gameFlow = function() {
 }
 
 gameFlow();
-setInterval(gameFlow, 5*60*1000);
+setInterval(gameFlow, 10*60*1000);
