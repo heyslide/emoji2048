@@ -135,7 +135,7 @@ function moveLeft(grid) {
                 grid[i][lastZero] = grid[i][j];
                 grid[i][j] = 0;
                 for (z = lastZero; z < j+1; z++) {
-                    if (grid[i][j] == 0) {
+                    if (grid[i][z] == 0) {
                         lastZero = z;
                         break;
                     }
@@ -148,7 +148,7 @@ function moveRight(grid) {
     for (i = 0; i < 4; i++) {
         for (rep = 0; rep < 3; rep++) {
             col = -1;
-            for (j = 3; j < -1; j--) {
+            for (j = 3; j > -1; j--) {
                 if (grid[i][j] == 0) continue;
                 if (col == -1) {
                     col = j;
@@ -161,19 +161,19 @@ function moveRight(grid) {
                 if (grid[i][j] == grid[i][col]) {
                     grid[i][col] += 1;
                     grid[i][j] = 0;
-                    col = -1;
+                    col = -1
                 }
             }
         }
 
         lastZero = -1;
-        for (j = 3; j < -1; j--) {
+        for (j = 3; j > -1; j--) {
             if (grid[i][j] == 0 && j > lastZero) lastZero = j;
             else if (lastZero != -1) {
                 grid[i][lastZero] = grid[i][j];
                 grid[i][j] = 0;
                 for (z = lastZero; z > j-1; z--) {
-                    if (grid[i][j] == 0) {
+                    if (grid[i][z] == 0) {
                         lastZero = z;
                         break;
                     }
@@ -187,25 +187,25 @@ function moveRight(grid) {
 function checkUp(grid) {
     checkGrid = JSON.parse(JSON.stringify(grid));
     moveUp(checkGrid);
-    if (gridEquals(checkGrid, gameGrid)) return true;
+    if (gridEquals(checkGrid, grid)) return true;
     else return false;
 }
 function checkDown(grid) {
     checkGrid = JSON.parse(JSON.stringify(grid));
     moveDown(checkGrid);
-    if (gridEquals(checkGrid, gameGrid)) return true;
+    if (gridEquals(checkGrid, grid)) return true;
     else return false;
 }
 function checkLeft(grid) {
     checkGrid = JSON.parse(JSON.stringify(grid));
     moveLeft(checkGrid);
-    if (gridEquals(checkGrid, gameGrid)) return true;
+    if (gridEquals(checkGrid, grid)) return true;
     else return false;
 }
 function checkRight(grid) {
     checkGrid = JSON.parse(JSON.stringify(grid));
     moveRight(checkGrid);
-    if (gridEquals(checkGrid, gameGrid)) return true;
+    if (gridEquals(checkGrid, grid)) return true;
     else return false;
 }
 
@@ -260,6 +260,7 @@ function checkAvailableMovements(){
 // if state == -1, the game has just started
 function buildTweet(grid, state, availableMovements) {
     var gameState = "";
+    if (state == 0) gameState = "@emoji2048\n";
 
     // Show grid
     for (i = 0; i < 4; i++) {
@@ -274,9 +275,11 @@ function buildTweet(grid, state, availableMovements) {
         gameState = `${gameState}\nThis is the start of a new game!`
     }
 
-    if (state == 0) {
+    if (state >= 0) gameState = `${gameState}\nLast movement: ${lastMove}`
+
+    if (state <= 0) {
         gameState = `${gameState}\nAvailable movements: `
-        for (i = 0; i < availableMovements.length, i++) {
+        for (i = 0; i < availableMovements.length; i++) {
             if (i != 0) gameState = `${gameState}, `
             gameState = `${gameState}${availableMovements[i]}`
 
@@ -287,7 +290,6 @@ function buildTweet(grid, state, availableMovements) {
     if (state == 1) {
         gameState = `${gameState}\nThe game has finished. ${numMovements} movements made.`
     }
-
     return gameState;
 }
 
@@ -307,7 +309,7 @@ function findAndChooseDirection(data) {
 
 var gameFlow = function() {
     if (priorTweet == -1) {
-        initGame(gameGrid);
+        initGame();
         var tweetText = buildTweet(gameGrid, -1, checkAvailableMovements());
         T.post('statuses/update', {status: tweetText}, function(err, data, response) {
             if (err) {
@@ -343,35 +345,49 @@ var gameFlow = function() {
                 else {
                     var available = checkAvailableMovements()
                     var randMove = getRandNumber(0, available.length-1);
+                    console.log("Available: " + available + ", rand: " + randMove);
                     switch(available[randMove]) {
                         case "up":
                             moveUp(gameGrid);
                             lastMove = "up (random)";
+                            break;
                         case "down":
                             moveDown(gameGrid);
                             lastMove = "down (random)";
+                            break;
                         case "left":
                             moveLeft(gameGrid);
                             lastMove = "left (random)";
+                            break;
                         case "right":
                             moveRight(gameGrid);
                             lastMove = "right (random)";
+                            break;
                     }
                 }
 
                 ++numMovements;
                 addNewPiece(gameGrid);
-                if (isItFull && haveYouLost) {
+
+                if (isItFull(gameGrid) && haveYouLost(gameGrid)) {
+                    console.log("Full grid");
+                    buildTweetText = 1;
+                    priorTweet = -1
+                }
+
+                if (numMovements == 2) {
+                    console.log("Full grid");
                     buildTweetText = 1;
                 }
 
                 var tweetText = buildTweet(gameGrid, buildTweetText, checkAvailableMovements());
-                T.post('statuses/update', {status: tweetText}, function(err, data, response) {
+                T.post('statuses/update', {status: tweetText, in_reply_to_status_id: priorTweet}, function(err, data, response) {
                     if (err) {
                         console.log("error on tweeting an update!", err);
                     }
                     else {
-                        priorTweet = data.id_str;
+                        if (buildTweetText == 1) priorTweet == -1;
+                        else priorTweet = data.id_str;
                         console.log("Prior tweet: " + priorTweet);
                     }
                 })
@@ -382,4 +398,4 @@ var gameFlow = function() {
 }
 
 gameFlow();
-setInterval(gameFlow, 0.5*60*1000);
+setInterval(gameFlow, 5*60*1000);
