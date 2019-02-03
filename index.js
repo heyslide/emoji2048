@@ -11,9 +11,16 @@ var gameGrid = [ [0, 0, 0, 0],
 var priorTweet = -1;
 var numMovements = 0;
 var lastMove = "";
-var buildTweetText = 0;
 // 0: the game is on, 1: you lost the game
+var buildTweetText = 0;
+var chosenPallette = 1;
+var gameIsWon = false;
 const RECOVERCOUNT = 10;
+const PALLETTES = [
+    [ '\u{25FB}', '\u{2648}', '\u{2649}', '\u{264A}', '\u{264B}', '\u{264C}', '\u{264D}', '\u{264E}', '\u{264F}', '\u{2650}', '\u{2651}', '\u{2652}', '\u{2653}' ],
+    [ '\u{25FB}', '\u{1F5A4}', '\u{1F49C}', '\u{1F499}', '\u{1F49A}', '\u{1F49B}', '\u{1F9E1}', '\u{2764}', '\u{1F496}', '\u{1F495}', '\u{1F49E}', '\u{1F49F}',  '\u{1F48C}'],
+    [ '\u{25FB}', '\u{1F311}', '\u{1F312}', '\u{1F313}', '\u{1F314}', '\u{1F315}', '\u{1F31D}', '\u{1F316}', '\u{1F317}', '\u{1F318}', '\u{1F31A}', '\u{2B50}', '\u{1F320}']
+                  ];
 
 
 // Auxiliar functions
@@ -46,6 +53,7 @@ function moveUp(grid) {
                 }
                 if (grid[i][j] == grid[row][j]) {
                     grid[row][j] += 1;
+                    if (grid[row][j] == 12) gameIsWon = true;
                     grid[i][j] = 0;
                     row = -1;
                 }
@@ -84,6 +92,7 @@ function moveDown(grid) {
                 }
                 if (grid[i][j] == grid[row][j]) {
                     grid[row][j] += 1;
+                    if (grid[row][j] == 12) gameIsWon = true;
                     grid[i][j] = 0;
                     row = -1;
                 }
@@ -122,6 +131,7 @@ function moveLeft(grid) {
                 }
                 if (grid[i][j] == grid[i][col]) {
                     grid[i][col] += 1;
+                    if (grid[i][col] == 12) gameIsWon = true;
                     grid[i][j] = 0;
                     col = -1;
                 }
@@ -160,6 +170,7 @@ function moveRight(grid) {
                 }
                 if (grid[i][j] == grid[i][col]) {
                     grid[i][col] += 1;
+                    if (grid[i][col] == 12) gameIsWon = true;
                     grid[i][j] = 0;
                     col = -1
                 }
@@ -240,7 +251,11 @@ function addNewPiece(grid) {
 
 // initGame: initialises a new game
 function initGame() {
+    gameIsWon = false;
     numMovements = 0;
+    buildTweetText = 0;
+    lastMove = ""
+    chosenPallette = getRandNumber(0, PALLETTES.length-1);
     gameGrid = [ [0, 0, 0, 0],
                  [0, 0, 0, 0],
                  [0, 0, 0, 0],
@@ -248,6 +263,7 @@ function initGame() {
     addNewPiece(gameGrid);
 }
 
+// checkAvailableMovements: checks in which directions the nummbers can be moved
 function checkAvailableMovements(){
     var availableMovements = [];
     if (!checkUp(gameGrid)) availableMovements.push("up");
@@ -257,38 +273,42 @@ function checkAvailableMovements(){
     return availableMovements;
 }
 
+// buildTweet: builds the text of the tweet
 // if state == -1, the game has just started
 function buildTweet(grid, state, availableMovements) {
     var gameState = "";
-    if (state == 0) gameState = "@emoji2048\n";
+    if (state >= 0) gameState = "@emoji2048\n"; //needed to thread a game
 
     // Show grid
     for (i = 0; i < 4; i++) {
         for (j = 0; j < 4; j++) {
-            gameState = gameState.concat(grid[i][j]);
+            gameState = gameState.concat(PALLETTES[chosenPallette][ grid[i][j] ]);
         }
         gameState = gameState.concat("\n");
     }
 
     // Other data of the game
     if (state == -1) {
-        gameState = `${gameState}\nThis is the start of a new game!`
+        gameState = `${gameState}\n\u{2728} A new game has started!`
     }
 
-    if (state >= 0) gameState = `${gameState}\nLast movement: ${lastMove}`
+    if (state >= 0) gameState = `${gameState}\n\u{23EA} Last movement: ${lastMove}`
 
     if (state <= 0) {
-        gameState = `${gameState}\nAvailable movements: `
+        gameState = `${gameState}\n\u{2753} Available movements: `
         for (i = 0; i < availableMovements.length; i++) {
             if (i != 0) gameState = `${gameState}, `
             gameState = `${gameState}${availableMovements[i]}`
 
         }
-        gameState = `${gameState}\nNumber of movements made: ${numMovements}`
+        gameState = `${gameState}\n\u{0023}\u{FE0F}\u{20E3} Movements made: ${numMovements}`
     }
 
     if (state == 1) {
-        gameState = `${gameState}\nThe game has finished. ${numMovements} movements made.`
+        gameState = `${gameState}\n\u{1F4A5} The game has finished. ${numMovements} movements made. A new game will start now.`
+    }
+    if (state == 2) {
+        gameState = `${gameState}\n\u{1F389} You have won this game in ${numMovements} movements! A new game will start now. \u{2764}`
     }
     return gameState;
 }
@@ -366,18 +386,19 @@ var gameFlow = function() {
                     }
                 }
 
-                ++numMovements;
-                addNewPiece(gameGrid);
-
-                if (isItFull(gameGrid) && haveYouLost(gameGrid)) {
-                    console.log("Full grid");
-                    buildTweetText = 1;
-                    priorTweet = -1
+                //win condition
+                if (gameIsWon) {
+                    buildTweetText = 2;
                 }
+                else {
+                    ++numMovements;
+                    addNewPiece(gameGrid);
 
-                if (numMovements == 2) {
-                    console.log("Full grid");
-                    buildTweetText = 1;
+                    // loss condition
+                    if (isItFull(gameGrid) && haveYouLost(gameGrid)) {
+                        console.log("Full grid");
+                        buildTweetText = 1;
+                    }
                 }
 
                 var tweetText = buildTweet(gameGrid, buildTweetText, checkAvailableMovements());
@@ -386,7 +407,7 @@ var gameFlow = function() {
                         console.log("error on tweeting an update!", err);
                     }
                     else {
-                        if (buildTweetText == 1) priorTweet == -1;
+                        if (buildTweetText >= 1) priorTweet = -1;
                         else priorTweet = data.id_str;
                         console.log("Prior tweet: " + priorTweet);
                     }
